@@ -1,21 +1,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// En dýþtaki sýnýfý static yapýyoruz ki kolay eriþelim
 public static class GeometryUtils
 {
+    // --- BÖLÜM 1: ÜÇGENLEME (EAR CLIPPING) ---
     public static class EarClipping
     {
         public static int[] Triangulate(List<Vector3> points)
         {
-            // ---YENÝ EKLENEN KONTROL: SAAT YÖNÜNÜ DÜZELT-- -
-            // Eðer noktalar saat yönünün tersiyse, listeyi tersine çevir
+            // Poligon yönü kontrolü ve düzeltme
             if (!IsClockwise(points))
             {
                 points.Reverse();
                 Debug.Log("Poligon yönü ters (CCW) algýlandý, otomatik olarak CW yapýldý.");
             }
-            // -------------------------------------------------
 
             List<int> indices = new List<int>();
             int n = points.Count;
@@ -24,9 +22,8 @@ public static class GeometryUtils
             List<int> indexList = new List<int>();
             for (int i = 0; i < n; i++) indexList.Add(i);
 
-            // Sonsuz döngü korumasý
             int iterations = 0;
-            while (indexList.Count > 3 && iterations < 100)
+            while (indexList.Count > 3 && iterations < 500)
             {
                 iterations++;
                 bool earFound = false;
@@ -49,9 +46,12 @@ public static class GeometryUtils
                 if (!earFound) break;
             }
 
-            indices.Add(indexList[0]);
-            indices.Add(indexList[1]);
-            indices.Add(indexList[2]);
+            if (indexList.Count == 3)
+            {
+                indices.Add(indexList[0]);
+                indices.Add(indexList[1]);
+                indices.Add(indexList[2]);
+            }
 
             return indices.ToArray();
         }
@@ -62,8 +62,6 @@ public static class GeometryUtils
             Vector2 b = new Vector2(points[c].x, points[c].z);
             Vector2 g = new Vector2(points[n].x, points[n].z);
 
-            // UNITY SAAT YÖNÜ (Clockwise) KONTROLÜ
-            // Eðer zemin oluþmazsa buradaki <= 0 kýsmýný >= 0 yapmayý deneyeceðiz.
             if (CrossProduct(a, b, g) <= 0) return false;
 
             for (int i = 0; i < indexList.Count; i++)
@@ -85,15 +83,11 @@ public static class GeometryUtils
             float d1 = CrossProduct(p, a, b);
             float d2 = CrossProduct(p, b, c);
             float d3 = CrossProduct(p, c, a);
-
-            // Daha hassas kontrol: Sadece kesinlikle içerideyse true döner
             bool hasNeg = (d1 < -0.001f) || (d2 < -0.001f) || (d3 < -0.001f);
             bool hasPos = (d1 > 0.001f) || (d2 > 0.001f) || (d3 > 0.001f);
-
             return !(hasNeg && hasPos);
         }
 
-        // Poligonun saat yönünde olup olmadýðýný kontrol eder (Schoenhardt Algoritmasý basiti)
         private static bool IsClockwise(List<Vector3> points)
         {
             float area = 0;
@@ -101,12 +95,55 @@ public static class GeometryUtils
             {
                 Vector3 p1 = points[i];
                 Vector3 p2 = points[(i + 1) % points.Count];
-                // 2D düzlemde (XZ) alan hesabý
                 area += (p2.x - p1.x) * (p2.z + p1.z);
             }
-            // Alan negatifse Saat Yönünün Tersidir (CCW), pozitifse Saat Yönüdür (CW)
-            // Unity'nin XZ düzlemindeki koordinat sistemine göre bu kontrolü yapýyoruz.
             return area < 0;
+        }
+    }
+
+    // --- BÖLÜM 2: 3-RENKLENDÝRME (3-COLORING) ---
+    public static class TriColoring
+    {
+        public static int[] ColorMesh(Vector3[] vertices, int[] triangles)
+        {
+            int vertexCount = vertices.Length;
+            int[] colors = new int[vertexCount];
+            for (int i = 0; i < vertexCount; i++) colors[i] = -1; // -1: Henüz boyanmamýþ
+
+            // Ýlk üçgeni boya
+            if (triangles.Length >= 3)
+            {
+                colors[triangles[0]] = 0;
+                colors[triangles[1]] = 1;
+                colors[triangles[2]] = 2;
+            }
+
+            bool coloredAny;
+            int safetyNet = 0;
+            do
+            {
+                coloredAny = false;
+                safetyNet++;
+                for (int i = 0; i < triangles.Length; i += 3)
+                {
+                    int[] t = { triangles[i], triangles[i + 1], triangles[i + 2] };
+
+                    for (int j = 0; j < 3; j++)
+                    {
+                        int current = t[j];
+                        int next = t[(j + 1) % 3];
+                        int prev = t[(j + 2) % 3];
+
+                        if (colors[current] == -1 && colors[next] != -1 && colors[prev] != -1)
+                        {
+                            colors[current] = 3 - (colors[next] + colors[prev]);
+                            coloredAny = true;
+                        }
+                    }
+                }
+            } while (coloredAny && safetyNet < 1000);
+
+            return colors;
         }
     }
 }

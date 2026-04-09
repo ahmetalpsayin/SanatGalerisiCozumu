@@ -8,6 +8,8 @@ public class PolygonManager : MonoBehaviour
     public GameObject pointPrefab; // Köþeleri temsil eden küre prefab'ý
     public float wallHeight = 3.0f; // Duvar yüksekliði
 
+    public GameObject cameraPrefab; // Köþeleri temsil eden küre prefab'ý
+
     [Header("Data")]
     public List<Vector3> pointPositions = new List<Vector3>();
     private List<GameObject> pointObjects = new List<GameObject>();
@@ -68,29 +70,75 @@ public class PolygonManager : MonoBehaviour
 
     void GenerateGallery()
     {
-        Debug.Log("Galeri inþa ediliyor... Nokta sayýsý: " + pointPositions.Count);
-
-        // MeshGenerator bileþenini al
+        Debug.Log("Galeri inþa ediliyor...");
         MeshGenerator generator = GetComponent<MeshGenerator>();
 
         if (generator != null)
         {
-            // Matematiksel ve görsel inþa iþlemini baþlat
+            // 1. Mesh'i oluþtur (Zemin ve Duvarlar)
             generator.CreateMesh(pointPositions, wallHeight);
 
-            // Giriþ noktalarýný (küreleri) gizle
+            // 2. Oluþturulan Mesh verilerini al
+            Mesh mesh = GetComponent<MeshFilter>().mesh;
+            Vector3[] vertices = mesh.vertices;
+            int[] triangles = mesh.triangles;
+
+            // 3. 3-Coloring (Üç-Renklendirme) Algoritmasýný çalýþtýr
+            // Not: Sadece zemin köþelerini (ilk noktalarý) boyamak yeterlidir
+            int[] vertexColors = GeometryUtils.TriColoring.ColorMesh(vertices, triangles);
+
+            // 4. Hangi renkten (0, 1, 2) kaç tane olduðunu say
+            int[] colorCounts = new int[3];
+            for (int i = 0; i < pointPositions.Count; i++) // Sadece ana köþeleri sayýyoruz
+            {
+                if (vertexColors[i] != -1)
+                    colorCounts[vertexColors[i]]++;
+            }
+
+            // 5. En az kullanýlan rengi (ID) tespit et
+            int minColorID = 0;
+            if (colorCounts[1] < colorCounts[minColorID]) minColorID = 1;
+            if (colorCounts[2] < colorCounts[minColorID]) minColorID = 2;
+
+            Debug.Log($"Renk Daðýlýmý -> Kýrmýzý: {colorCounts[0]}, Yeþil: {colorCounts[1]}, Mavi: {colorCounts[2]}");
+            Debug.Log($"Seçilen Minimum Renk ID: {minColorID}. Bu noktalara kamera yerleþtiriliyor...");
+
+            // 6. Kameralarý Yerleþtir
+            if (cameraPrefab != null)
+            {
+                for (int i = 0; i < pointPositions.Count; i++)
+                {
+                    if (vertexColors[i] == minColorID)
+                    {
+                        // Kamerayý duvarýn üst hizasýna koyuyoruz
+                        Vector3 camPos = vertices[i] + Vector3.up * wallHeight;
+
+                        // Kamerayý oluþtur ve PolygonManager'ýn altýna baðla
+                        GameObject cam = Instantiate(cameraPrefab, camPos, Quaternion.identity);
+                        cam.transform.SetParent(this.transform);
+
+                        // Opsiyonel: Kamerayý poligonun merkezine doðru döndürebilirsin
+                        cam.transform.LookAt(GetPolygonCenter() + Vector3.up * (wallHeight / 2));
+                    }
+                }
+            }
+
+            // 7. Giriþ noktalarýný (küreleri) gizle
             foreach (var obj in pointObjects)
             {
                 obj.SetActive(false);
             }
 
             isGalleryGenerated = true;
-            Debug.Log("Galeri baþarýyla oluþturuldu.");
         }
-        else
-        {
-            Debug.LogError("HATA: PolygonManager objesi üzerinde 'MeshGenerator' script'i bulunamadý!");
-        }
+    }
+
+    // Yardýmcý fonksiyon: Kameralarýn bakacaðý merkezi bulur
+    Vector3 GetPolygonCenter()
+    {
+        Vector3 center = Vector3.zero;
+        foreach (var pos in pointPositions) center += pos;
+        return center / pointPositions.Count;
     }
 
     void ResetScene()
