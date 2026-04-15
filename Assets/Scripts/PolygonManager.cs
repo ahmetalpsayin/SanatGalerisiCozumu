@@ -118,7 +118,7 @@ public class PolygonManager : MonoBehaviour
                         cam.transform.SetParent(this.transform);
 
                         // Opsiyonel: Kamerayý poligonun merkezine doðru döndürebilirsin
-                        cam.transform.LookAt(GetPolygonCenter() + Vector3.up * (wallHeight / 2));
+                        cam.transform.LookAt(GetPolygonCenter() + Vector3.up * (wallHeight / 2)); 
                     }
                 }
             }

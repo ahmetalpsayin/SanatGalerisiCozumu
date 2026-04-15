@@ -57,5 +57,19 @@ public class MeshGenerator : MonoBehaviour
 
         GetComponent<MeshFilter>().mesh = mesh;
         GetComponent<MeshRenderer>().material = galleryMaterial;
+
+        // "Obstacle" katmanýnýn index numarasýný bul ve ata
+        int obstacleLayer = LayerMask.NameToLayer("Obstacle");
+
+        // Eðer "Obstacle" katmaný tanýmlý deðilse NameToLayer -1 döner
+        if (obstacleLayer != -1)
+        {
+            gameObject.layer = obstacleLayer;
+            Debug.Log("Duvar Mesh'ine 'Obstacle' katmaný atandý.");
+        }
+        else
+        {
+            Debug.LogWarning("DÝKKAT: Unity'de 'Obstacle' adýnda bir Layer tanýmlanmamýþ!");
+        }
     }
 }
